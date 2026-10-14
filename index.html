@@ -1,0 +1,1047 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta name="theme-color" content="#16a34a">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-title" content="行動貯金">
+<meta name="apple-mobile-web-app-status-bar-style" content="default">
+<script>
+/* ===== 着せ替え（テーマ） =====
+   group: base=ノーマル / color=カラー / char=キャラクター。選択は localStorage "kc-theme" に保存（バックアップJSONには含めない）。
+   v は CSS 変数の上書き。未指定の変数はノーマルの値。mascot があるテーマはホームの残高カードにキャラが出る。 */
+const DARK = { bg: "#0f172a", card: "#1e293b", tx: "#f1f5f9", sub: "#94a3b8", line: "#334155", chip: "#334155", dis: "#475569",
+  inbd: "#475569", toastbg: "#334155", warn: "#422006", sh: "rgba(0,0,0,.4)", red: "#f87171" };
+const THEMES = [
+  { id: "normal", name: "ノーマル", group: "base", g: "#16a34a", gd: "#15803d", v: {} },
+  { id: "blue", name: "ブルー", group: "color", g: "#2563eb", gd: "#1d4ed8", v: { bg: "#eff6ff", toastact: "#93c5fd" } },
+  { id: "pink", name: "ピンク", group: "color", g: "#ec4899", gd: "#db2777", v: { bg: "#fdf2f8", toastact: "#f9a8d4" } },
+  { id: "purple", name: "パープル", group: "color", g: "#7c3aed", gd: "#6d28d9", v: { bg: "#f5f3ff", toastact: "#c4b5fd" } },
+  { id: "orange", name: "オレンジ", group: "color", g: "#ea580c", gd: "#c2410c", v: { bg: "#fff7ed", toastact: "#fdba74" } },
+  { id: "dark", name: "ダーク", group: "color", g: "#22c55e", gd: "#15803d", v: { ...DARK, onp: "#052e16" } },
+  { id: "neko", name: "ねこ", group: "char", g: "#f59e0b", gd: "#d97706", mascot: "🐱", v: { bg: "#fffbeb", toastact: "#fcd34d" },
+    say: ["今日もがんばるにゃ！", "えらいにゃ〜！", "ご褒美まであと少しにゃ"] },
+  { id: "kuma", name: "くま", group: "char", g: "#a16207", gd: "#78350f", mascot: "🐻", v: { bg: "#fef9ee", toastact: "#fde68a" },
+    say: ["ゆっくりでいいクマ", "すごいクマ！", "こつこつ貯めるクマ"] },
+  { id: "usagi", name: "うさぎ", group: "char", g: "#f472b6", gd: "#c026d3", mascot: "🐰", v: { bg: "#fdf4ff", toastact: "#f5d0fe" },
+    say: ["ぴょんぴょん貯めよう！", "やったね、ぴょん！", "今日はなにする？"] },
+  { id: "pen", name: "ペンギン", group: "char", g: "#0ea5e9", gd: "#0369a1", mascot: "🐧", v: { bg: "#f0f9ff", toastact: "#7dd3fc" },
+    say: ["クールにいこう", "ナイスだね！", "一歩ずつ進もう"] },
+  { id: "robo", name: "ロボ", group: "char", g: "#22d3ee", gd: "#0891b2", mascot: "🤖", v: { ...DARK, bg: "#0b1220", onp: "#042f2e" },
+    say: ["ミッション：行動を記録せよ", "ポイント加算を確認", "残高、良好です"] },
+  /* BLEACH（キャラ名は公式サイトの表記。配色は作者の印象による推測で、公式のカラーではない。画像・公式台詞は使わず、台詞は自作） */
+  { id: "ichigo", name: "黒崎一護", group: "bleach", g: "#f97316", gd: "#c2410c", mascot: "🗡️", v: { ...DARK, bg: "#111111", card: "#1f1f1f", line: "#3a3a3a", chip: "#3a3a3a", dis: "#525252", inbd: "#525252", toastbg: "#3a3a3a", onp: "#1a0a00", toastact: "#fdba74" },
+    say: ["今日も一歩、前に出る", "いい動きだ！", "守りたいもののために貯める"] },
+  { id: "rukia", name: "朽木ルキア", group: "bleach", g: "#60a5fa", gd: "#1d4ed8", mascot: "❄️", v: { bg: "#eff6ff", toastact: "#bfdbfe" },
+    say: ["凛と、静かに続けよう", "見事な働きだ", "舞うように貯まっていく"] },
+  { id: "byakuya", name: "朽木白哉", group: "bleach", g: "#f9a8d4", gd: "#9d174d", mascot: "🌸", v: { bg: "#fdf2f8", toastact: "#fbcfe8", onp: "#4a0d2a" },
+    say: ["美しく、淡々と積み重ねよ", "悪くない", "品位ある残高だ"] },
+  { id: "toshiro", name: "日番谷冬獅郎", group: "bleach", g: "#38bdf8", gd: "#0e7490", mascot: "🧊", v: { bg: "#ecfeff", toastact: "#a5f3fc", onp: "#04222b" },
+    say: ["冷静にいくぞ", "やればできるじゃないか", "よく貯めたな"] },
+  { id: "kenpachi", name: "更木剣八", group: "bleach", g: "#dc2626", gd: "#7f1d1d", mascot: "⚔️", v: { ...DARK, bg: "#190a0a", card: "#2a1414", line: "#4a2424", chip: "#4a2424", dis: "#5b3030", inbd: "#5b3030", toastbg: "#4a2424", onp: "#fff", toastact: "#fca5a5", red: "#fb923c" },
+    say: ["今日も思いきり暴れろ！", "いいぞ、もっとだ！", "どこまでも貯めてやる"] },
+  { id: "urahara", name: "浦原喜助", group: "bleach", g: "#65a30d", gd: "#3f6212", mascot: "🎩", v: { bg: "#f7fee7", toastact: "#bef264" },
+    say: ["まあまあ、気楽にいきましょう", "おや、順調っスね", "いい商売っスよ"] },
+  { id: "aizen", name: "藍染惣右介", group: "bleach", g: "#8b5cf6", gd: "#4c1d95", mascot: "🦋", v: { ...DARK, bg: "#17122b", card: "#241c42", line: "#3b2f66", chip: "#3b2f66", dis: "#4c3f7d", inbd: "#4c3f7d", toastbg: "#3b2f66", onp: "#fff", toastact: "#c4b5fd" },
+    say: ["すべて計算どおりだ", "想定の範囲内だよ", "残高さえ思いのままに"] },
+  { id: "kyoraku", name: "京楽春水", group: "bleach", g: "#e11d48", gd: "#9f1239", mascot: "👒", v: { bg: "#fff1f2", toastact: "#fda4af" },
+    say: ["のんびり行こうじゃないの", "お、やるねぇ", "ご褒美、近いんじゃない？"] },
+  /* 世界観スキン（全画面）: 各画面の上にオリジナルの剣士キャラ＋一言を出す。公式キャラではなく、黒い着物・刀・橙という雰囲気だけを借りた独自デザイン。
+     画面ごとに自分の画像へ差し替え可（IndexedDB "timg-skin-<画面>"）。lines は画面ごとの台詞（自作）。 */
+  { id: "bleachskin", name: "BLEACH風スキン", group: "skin", g: "#f97316", gd: "#9a3412", swatch: "🗡️", skin: true, mark: "斬", k: "ember", c: "#fb923c",
+    v: { ...DARK, bg: "#0c0c0e", card: "#18181b", line: "#2e2e33", chip: "#2e2e33", dis: "#4a4a52", inbd: "#4a4a52", toastbg: "#2e2e33", onp: "#1a0a00", toastact: "#fdba74" },
+    lines: {
+      home: ["今日の一太刀、いってみよう", "いいペースだ", "貯金、ずいぶん育ったな"],
+      history: ["振り返りは強さの源だ", "積み重ねが見えるな", "足跡は嘘をつかない"],
+      chart: ["数字は正直だ", "伸びてるじゃないか", "波があっても進めばいい"],
+      rewards: ["ご褒美は戦いのあとに", "あと少し、踏ん張れ", "選ぶのも修行のうちだ"],
+      settings: ["準備は万全にな", "道具の手入れも大事だ", "好みに合わせて整えよう"]
+    } },
+  /* 写真スキン: 画面上部に大きなヒーロー写真、背景にも暗くぼかした写真を敷く。写真はユーザーが端末内から選ぶ（アプリには同梱しない）。
+     キー pf+"bg"=背景、pf+<画面>=その画面のヒーロー（未設定なら pf+"home" を流用）。写真が無くても暗地＋橙の斜線で成立する。 */
+  { id: "ichigoskin", name: "黒崎一護（写真）", group: "skin", g: "#ff7a00", gd: "#b23a00", swatch: "🔶", skin: true, hero: true, pf: "ichi-", k: "ember", c: "#ff9a3d",
+    v: { ...DARK, bg: "#0a0a0c", card: "rgba(20,20,24,.78)", line: "rgba(255,255,255,.1)", chip: "rgba(255,255,255,.12)", dis: "#4a4a52", inbd: "#55555e", toastbg: "#2a2a30", onp: "#1a0a00", toastact: "#ffb36b" },
+    lines: {
+      home: ["今日も、前へ", "守るために積み上げる", "ペースは悪くない"],
+      history: ["歩いた道を振り返る", "積み重ねが力になる", "足跡は嘘をつかない"],
+      chart: ["数字は正直だ", "確かに伸びている", "波があっても進み続ける"],
+      rewards: ["戦いのあとのご褒美", "あと少しだ", "選ぶのも楽しみのうち"],
+      settings: ["整えて、また前へ", "道具の手入れも大事だ", "自分好みに仕上げよう"]
+    } }
+];
+const SKIN_SCREENS = [["home", "ホーム"], ["history", "履歴・グラフ"],["rewards", "達成状況"], ["settings", "設定"]];
+// オリジナルの剣士キャラ（SVG）。画面ごとに持ち物が変わる
+function charSVG(pose) {
+  const prop = {
+    home: `<rect x="60" y="14" width="6" height="62" rx="2" fill="#e5e7eb" transform="rotate(28 63 50)"/><rect x="55" y="62" width="16" height="5" rx="2" fill="#f97316" transform="rotate(28 63 64)"/>`,
+    history: `<rect x="56" y="70" width="32" height="18" rx="2" fill="#f3f4f6"/><path d="M62 76h20M62 82h14" stroke="#9ca3af" stroke-width="2"/>`,
+    chart: `<rect x="58" y="78" width="7" height="10" fill="#f97316"/><rect x="69" y="70" width="7" height="18" fill="#fb923c"/><rect x="80" y="62" width="7" height="26" fill="#fdba74"/>`,
+    rewards: `<rect x="60" y="68" width="28" height="22" rx="2" fill="#f97316"/><rect x="72" y="68" width="4" height="22" fill="#111827"/><rect x="60" y="76" width="28" height="4" fill="#111827"/>`,
+    settings: `<circle cx="76" cy="76" r="10" fill="none" stroke="#9ca3af" stroke-width="5" stroke-dasharray="5 3"/><circle cx="76" cy="76" r="3" fill="#9ca3af"/>`
+  }[pose] || "";
+  const back = pose === "home" ? prop : "", front = pose === "home" ? "" : prop;
+  return `<svg viewBox="0 0 100 100" aria-hidden="true">${back}
+    <path d="M14 100Q18 66 50 62Q82 66 86 100Z" fill="#111827"/><path d="M42 62L50 80L58 62Z" fill="#f3f4f6"/><rect x="28" y="86" width="44" height="6" fill="#f97316"/>
+    <circle cx="50" cy="40" r="20" fill="#fde0c8"/>
+    <path d="M28 38Q24 12 50 12Q76 12 72 38L66 27L60 36L52 22L44 36L36 25Z" fill="#2dd4bf"/><rect x="29" y="32" width="42" height="5" fill="#dc2626"/>
+    <ellipse cx="42" cy="45" rx="2.6" ry="3.6" fill="#111"/><ellipse cx="58" cy="45" rx="2.6" ry="3.6" fill="#111"/>
+    <path d="M44 53Q50 58 56 53" stroke="#111" fill="none" stroke-width="2" stroke-linecap="round"/>${front}</svg>`;
+}
+function skinBanner(screen) {
+  const t = currentTheme();
+  if (!t.skin || !t.lines[screen]) return "";
+  const ls = t.lines[screen], line = ls[new Date().getDate() % ls.length];
+  if (t.hero) { // 写真スキン: 全幅のヒーロー（画面ごと→ホームの順に写真を探す）
+    const ph = themeImgs[t.pf + screen] || themeImgs[t.pf + "home"], nm = SKIN_SCREENS.find(([k]) => k === screen)[1];
+    return `<div class="hero">${ph ? `<img src="${ph}" alt="">` : `<span class="k">護</span>`}<div class="ttl"><b>${nm}</b><span>${esc(line)}</span></div></div>`;
+  }
+  const img = themeImgs["skin-" + screen];
+  return `<div class="banner"><div class="bc">${img ? `<img src="${img}" alt="">` : charSVG(screen)}</div><div class="bub">${esc(line)}</div></div>`;
+}
+const THEME_VARS = ["g", "gd", "bg", "card", "tx", "sub", "red", "line", "chip", "dis", "inbd", "toastbg", "toastact", "warn", "onp", "sh"];
+// 保存が使えない環境（プライベートブラウズ等）でも選択表示が追従するよう、メモリにも持つ
+let themeMem = null;
+function getThemeId() {
+  if (themeMem) return themeMem;
+  try { return localStorage.getItem("kc-theme") || "normal"; } catch (e) { return "normal"; }
+}
+function setThemeId(id) {
+  themeMem = id;
+  try { localStorage.setItem("kc-theme", id); } catch (e) {}
+  applyTheme(id);
+}
+function currentTheme() { return THEMES.find(t => t.id === getThemeId()) || THEMES[0]; }
+/* 演出: k=舞うものの種類(petal桜/snow雪/ember火の粉/leaf葉)、c=その色、mark=カード背景に薄く出す漢字。キャラの姿は描かない */
+const FX = {
+  ichigo: { k: "ember", c: "#fb923c", mark: "斬" }, rukia: { k: "snow", c: "#dbeafe", mark: "雪" },
+  byakuya: { k: "petal", c: "#f9a8d4", mark: "桜" }, toshiro: { k: "snow", c: "#cffafe", mark: "氷" },
+  kenpachi: { k: "ember", c: "#f87171", mark: "闘" }, urahara: { k: "leaf", c: "#a3e635", mark: "商" },
+  aizen: { k: "petal", c: "#c4b5fd", mark: "鏡" }, kyoraku: { k: "petal", c: "#fda4af", mark: "花" }
+};
+THEMES.forEach(t => Object.assign(t, FX[t.id] || {}));
+function applyFx(t) {
+  if (!document.body) return;
+  let box = document.getElementById("fx");
+  if (!box) { box = document.createElement("div"); box.id = "fx"; document.body.appendChild(box); }
+  box.innerHTML = "";
+  if (!t.k || (window.matchMedia && matchMedia("(prefers-reduced-motion: reduce)").matches)) return;
+  for (let i = 0; i < 16; i++) {
+    const s = document.createElement("span"), sz = 5 + Math.random() * 8;
+    s.className = t.k;
+    s.style.cssText = `left:${Math.random() * 100}%;width:${sz}px;height:${t.k === "ember" ? sz : sz * 1.3}px;background:${t.c};color:${t.c};` +
+      `animation-duration:${8 + Math.random() * 9}s;animation-delay:-${Math.random() * 14}s;opacity:${0.5 + Math.random() * 0.4};` +
+      `--dx:${(Math.random() - 0.5) * 120}px;--rot:${Math.round(Math.random() * 540)}deg`;
+    box.appendChild(s);
+  }
+}
+function applyTheme(id) {
+  const t = THEMES.find(x => x.id === id) || THEMES[0], st = document.documentElement.style;
+  document.documentElement.dataset.grp = t.group; document.documentElement.dataset.hero = t.hero ? "1" : ""; applyFx(t);
+  THEME_VARS.forEach(k => st.removeProperty("--" + k));
+  st.setProperty("--g", t.g); st.setProperty("--gd", t.gd);
+  Object.entries(t.v).forEach(([k, v]) => st.setProperty("--" + k, v));
+  const m = document.querySelector('meta[name="theme-color"]');
+  if (m) m.content = t.v.bg || "#f3f4f6";
+}
+applyTheme(getThemeId());
+</script>
+<link rel="manifest" href="manifest.webmanifest">
+<link rel="apple-touch-icon" href="icon-180.png">
+<title>行動貯金</title>
+<style>
+:root{--g:#16a34a;--gd:#15803d;--bg:#f3f4f6;--card:#fff;--tx:#111827;--sub:#6b7280;--red:#dc2626;--line:#e5e7eb;
+  --chip:#e5e7eb;--dis:#cbd5e1;--inbd:#d1d5db;--toastbg:#111827;--toastact:#86efac;--warn:#fef3c7;--onp:#fff;--sh:rgba(0,0,0,.08)}
+*{box-sizing:border-box;-webkit-tap-highlight-color:transparent}
+html,body{margin:0;height:100%}
+body{font-family:-apple-system,BlinkMacSystemFont,"Hiragino Sans","Yu Gothic",sans-serif;background:var(--bg);color:var(--tx);transition:background .25s,color .25s;
+  padding-top:env(safe-area-inset-top)}
+#app{max-width:520px;margin:0 auto;min-height:100%;padding:12px 14px calc(76px + env(safe-area-inset-bottom))}
+header{display:flex;justify-content:space-between;align-items:center;margin-bottom:8px}
+header h1{font-size:18px;margin:0}
+button{font:inherit;cursor:pointer}
+.iconbtn{background:none;border:none;font-size:22px;padding:6px}
+.balance{background:linear-gradient(135deg,var(--g),var(--gd));color:var(--onp);border-radius:18px;padding:18px;text-align:center;margin-bottom:14px;position:relative;overflow:hidden}
+.balance>*{position:relative}
+.balance .wm{position:absolute;right:6px;bottom:-16px;font-size:110px;line-height:1;opacity:.14;pointer-events:none;font-family:"Yu Mincho","Hiragino Mincho ProN",serif}
+.face img,.sw img{width:100%;height:100%;border-radius:50%;object-fit:cover}
+.sw{overflow:hidden}
+.banner{display:flex;align-items:center;gap:12px;margin-bottom:12px}
+.banner .bc{width:92px;height:92px;flex:none;border-radius:20px;overflow:hidden;background:linear-gradient(160deg,#27272a,#0c0c0e);border:2px solid var(--g);box-shadow:0 0 16px -4px var(--g)}
+.banner .bc svg,.banner .bc img{width:100%;height:100%;object-fit:cover;display:block}
+.banner .bub{flex:1;background:var(--card);border:1px solid var(--g);border-radius:14px;padding:10px 12px;font-weight:700;font-size:14px;position:relative;font-family:"Yu Mincho","Hiragino Mincho ProN",serif}
+.banner .bub:before{content:"";position:absolute;left:-8px;top:50%;margin-top:-7px;border:7px solid transparent;border-left:0;border-right-color:var(--g)}
+.hero{position:relative;height:176px;margin:0 -14px 12px;overflow:hidden;background:linear-gradient(135deg,#2a2a30,#0a0a0c)}
+.hero img{position:absolute;inset:0;width:100%;height:100%;object-fit:cover;object-position:50% 20%}
+.hero:after{content:"";position:absolute;inset:0;pointer-events:none;
+  background:linear-gradient(to top,rgba(10,10,12,.92) 0,rgba(10,10,12,0) 62%),linear-gradient(112deg,transparent 64%,rgba(255,122,0,.8) 64.4%,rgba(255,122,0,.8) 67%,transparent 67.4%)}
+.hero .k{position:absolute;right:18px;top:-8px;font-size:140px;line-height:1;opacity:.12;color:#fff;font-family:"Yu Mincho","Hiragino Mincho ProN",serif}
+.hero .ttl{position:absolute;left:16px;bottom:12px;z-index:1;color:#fff;font-family:"Yu Mincho","Hiragino Mincho ProN",serif;text-shadow:0 2px 10px #000}
+.hero .ttl b{display:block;font-size:28px;letter-spacing:.14em}
+.hero .ttl span{display:inline-block;margin-top:4px;font-size:13px;border-left:3px solid var(--g);padding-left:8px}
+#pbg{position:fixed;inset:0;z-index:-1;background-size:cover;background-position:center top;filter:blur(2px)}
+#pbg:after{content:"";position:absolute;inset:0;background:linear-gradient(to bottom,rgba(10,10,12,.5),rgba(10,10,12,.88))}
+[data-hero="1"] .card,[data-hero="1"] .act,[data-hero="1"] nav{backdrop-filter:blur(8px);-webkit-backdrop-filter:blur(8px)}
+[data-hero="1"] .sheet{background:#18181b}
+[data-grp=skin] body{background-image:repeating-linear-gradient(135deg,rgba(255,255,255,.03) 0 2px,transparent 2px 16px)}
+[data-grp=skin] .card,[data-grp=skin] .act{border-left:3px solid var(--g)}
+[data-grp=skin] .balance{box-shadow:0 8px 26px -8px var(--g)}
+[data-grp=skin] header h1,[data-grp=skin] h2,[data-grp=skin] .balance .amt,[data-grp=skin] .act .nm{font-family:"Yu Mincho","Hiragino Mincho ProN",serif;letter-spacing:.04em}
+[data-grp=bleach] .balance{box-shadow:0 8px 26px -8px var(--g)}
+[data-grp=bleach] header h1,[data-grp=bleach] .balance .amt{font-family:"Yu Mincho","Hiragino Mincho ProN",serif;letter-spacing:.04em}
+#fx{position:fixed;inset:0;pointer-events:none;overflow:hidden;z-index:10}
+#fx span{position:absolute;top:-24px;display:block;will-change:transform;animation:fall linear infinite}
+#fx .snow{border-radius:50%;filter:blur(.4px)}
+#fx .petal{border-radius:150% 0 150% 0}
+#fx .leaf{border-radius:0 120% 0 120%}
+#fx .ember{border-radius:50%;top:auto;bottom:-24px;box-shadow:0 0 8px 1px currentColor;animation-name:rise}
+@keyframes fall{0%{transform:translate(0,0) rotate(0)}100%{transform:translate(var(--dx),112vh) rotate(var(--rot))}}
+@keyframes rise{0%{transform:translate(0,0);opacity:0}15%{opacity:.9}100%{transform:translate(var(--dx),-112vh);opacity:0}}
+.mascot{display:flex;align-items:center;justify-content:center;gap:10px;margin-bottom:8px}
+.mascot .face{font-size:44px;line-height:1;background:rgba(255,255,255,.22);border-radius:50%;width:64px;height:64px;display:flex;align-items:center;justify-content:center}
+.mascot .say{background:rgba(255,255,255,.92);color:#333;border-radius:12px;padding:6px 10px;font-size:13px;font-weight:600;position:relative;text-align:left}
+.mascot .say:before{content:"";position:absolute;left:-6px;top:50%;margin-top:-6px;border:6px solid transparent;border-left:0;border-right-color:rgba(255,255,255,.92)}
+.balance .lbl{font-size:13px;opacity:.9}
+.balance .amt{font-size:44px;font-weight:700;line-height:1.15}
+.balance .row{display:flex;justify-content:space-around;margin-top:8px;font-size:13px}
+.balance .row b{display:block;font-size:18px}
+.grid{display:grid;grid-template-columns:1fr 1fr;gap:10px}
+.act{background:var(--card);border:none;border-radius:16px;padding:16px 8px;text-align:center;box-shadow:0 1px 3px var(--sh);transition:transform .08s;color:var(--tx)}
+.act:active{transform:scale(.95)}
+.act .ic{font-size:34px}
+.act .nm{font-weight:600;margin-top:4px}
+.act .pr{color:var(--g);font-weight:700}
+.act .pr.neg{color:var(--red)}
+.act.done{opacity:.5}
+.act.done .nm,.act.done .pr{text-decoration:line-through;text-decoration-thickness:2px}
+.card{background:var(--card);border-radius:14px;padding:12px 14px;margin-bottom:10px;box-shadow:0 1px 3px var(--sh)}
+.item{display:flex;align-items:center;gap:10px;padding:10px 0;border-bottom:1px solid var(--line)}
+.item:last-child{border-bottom:none}
+.item .main{flex:1;min-width:0}
+.item .t{font-weight:600;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.item .s{font-size:12px;color:var(--sub)}
+.plus{color:var(--g);font-weight:700}.minus{color:var(--red);font-weight:700}
+.btn{background:var(--g);color:var(--onp);border:none;border-radius:10px;padding:9px 14px;font-weight:600}
+.btn:disabled{background:var(--dis)}
+.btn.sec{background:var(--chip);color:var(--tx)}
+.btn.dng{background:var(--red)}
+.btn.sm{padding:6px 10px;font-size:13px}
+.btn.block{width:100%;margin-top:8px}
+h2{font-size:15px;margin:16px 0 8px}
+.empty{text-align:center;color:var(--sub);padding:30px 10px}
+nav{position:fixed;left:0;right:0;bottom:0;background:var(--card);border-top:1px solid var(--line);display:flex;
+  padding-bottom:env(safe-area-inset-bottom)}
+nav button{flex:1;background:none;border:none;padding:8px 0 6px;color:var(--sub);font-size:11px}
+nav button .e{display:block;font-size:22px}
+nav button.on{color:var(--g);font-weight:700}
+#toast{position:fixed;left:50%;transform:translateX(-50%);bottom:calc(84px + env(safe-area-inset-bottom));background:var(--toastbg);color:#fff;
+  border-radius:12px;padding:10px 14px;display:none;align-items:center;gap:12px;z-index:20;max-width:92%}
+#toast button{background:none;border:none;color:var(--toastact);font-weight:700}
+.modal{position:fixed;inset:0;background:rgba(0,0,0,.45);display:flex;align-items:flex-end;justify-content:center;z-index:30}
+.sheet{background:var(--card);color:var(--tx);width:100%;max-width:520px;border-radius:18px 18px 0 0;padding:16px 16px calc(16px + env(safe-area-inset-bottom));max-height:90%;overflow:auto}
+.sheet h3{margin:0 0 10px}
+label{display:block;font-size:12px;color:var(--sub);margin:10px 0 4px}
+input[type=text],input[type=number]{width:100%;font:inherit;font-size:16px;padding:10px;border:1px solid var(--inbd);border-radius:10px;background:var(--card);color:var(--tx)}
+.sheet .btns{display:flex;gap:8px;margin-top:14px}.sheet .btns .btn{flex:1}
+.tag{font-size:11px;background:var(--chip);border-radius:6px;padding:1px 6px;color:var(--sub)}
+.progress{height:6px;background:var(--chip);border-radius:3px;overflow:hidden;margin-top:4px}
+.progress i{display:block;height:100%;background:var(--g)}
+.chips{display:flex;gap:6px;margin-bottom:10px}
+.chip{flex:1;border:none;background:var(--chip);border-radius:999px;padding:7px 0;font-size:13px;color:var(--tx)}
+.chip.on{background:var(--g);color:var(--onp);font-weight:700}
+.pager{display:flex;justify-content:space-between;align-items:center;margin-bottom:10px}
+.pager b:only-child{margin:0 auto}
+.seg{display:flex;background:var(--line);border-radius:999px;padding:0;margin-bottom:14px;overflow:hidden}
+.seg button{flex:1;border:none;background:none;padding:12px 0;font-weight:600;color:var(--sub);border-radius:999px}
+.seg button.on{background:color-mix(in srgb,var(--g) 22%,#fff);color:var(--tx)}
+.row-card{display:flex;align-items:center;gap:12px;width:100%;text-align:left;border:none;color:inherit;background:var(--card);
+  border-radius:18px;padding:14px;margin-bottom:10px;box-shadow:0 1px 3px rgba(0,0,0,.06)}
+.row-card .ico{width:44px;height:44px;border-radius:50%;display:flex;align-items:center;justify-content:center;font-size:22px;
+  background:color-mix(in srgb,var(--g) 18%,#fff);flex:none}
+.row-card .main{flex:1;min-width:0;display:flex;flex-direction:column}
+.row-card .t{font-weight:600}
+.row-card .s{font-size:12px;color:var(--sub);margin-top:2px}
+.row-card .flame{font-weight:700;color:#ea580c;font-size:14px;white-space:nowrap}
+.row-card .flame.off{color:var(--sub);font-weight:600}
+.row-card .chev{font-size:24px;color:var(--sub)}
+.fab{position:fixed;right:max(16px,calc(50% - 244px));bottom:calc(84px + env(safe-area-inset-bottom));width:56px;height:56px;border-radius:18px;
+  border:none;background:color-mix(in srgb,var(--g) 30%,#fff);color:var(--tx);font-size:28px;box-shadow:0 3px 10px rgba(0,0,0,.2);z-index:10}
+.week{display:flex;gap:4px;margin-top:10px}
+.wd{flex:1;text-align:center;font-size:11px;color:var(--sub)}
+.wd i{display:block;height:24px;line-height:24px;margin-top:2px;border-radius:6px;background:var(--line);font-style:normal;font-size:13px}
+.wd.on i{background:var(--g);color:#fff}
+.streak{font-size:11px;margin-top:3px;color:var(--sub)}
+.streak.done{color:var(--g);font-weight:700}
+.goalbar{margin-top:10px;text-align:left}
+.goalbar .gl{display:flex;justify-content:space-between;font-size:12px;margin-bottom:3px}
+.goalbar .gt{height:8px;background:rgba(255,255,255,.3);border-radius:4px;overflow:hidden}
+.goalbar .gt i{display:block;height:100%;background:#fff}
+.day{font-size:12px;color:var(--sub);margin:12px 2px 4px}
+.fold{display:flex;justify-content:space-between;align-items:center;width:100%;background:none;border:none;color:var(--tx);padding:0;margin:16px 0 8px;font-size:15px;font-weight:700}
+.fold span:last-child{font-size:12px;font-weight:400;color:var(--sub)}
+.themes{display:grid;grid-template-columns:repeat(3,1fr);gap:8px}
+.tm{background:var(--card);color:var(--tx);border:2px solid transparent;border-radius:14px;padding:10px 4px;text-align:center;font-size:12px;box-shadow:0 1px 3px var(--sh)}
+.tm.on{border-color:var(--g);font-weight:700}
+.tm .sw{width:40px;height:40px;border-radius:50%;margin:0 auto 4px;display:flex;align-items:center;justify-content:center;font-size:24px;border:1px solid var(--line)}
+</style>
+</head>
+<body>
+<div id="app"></div>
+<div id="toast"></div>
+<nav id="nav"></nav>
+<input type="file" id="file" accept="application/json,.json" hidden>
+<input type="file" id="img" accept="image/*" hidden>
+<input type="file" id="imgs" accept="image/*" multiple hidden>
+
+<script>
+"use strict";
+/* ===== データ層（IndexedDB に1レコードで保存） =====
+   state = { actions:[], logs:[], rewards:[] }
+   残高は保存せず、毎回計算する。 */
+const DB_NAME = "kodo-chokin", STORE = "kv", KEY = "state";
+let state = { actions: [], logs: [], rewards: [] };
+
+function idb() {
+  return new Promise((res, rej) => {
+    const r = indexedDB.open(DB_NAME, 1);
+    r.onupgradeneeded = () => r.result.createObjectStore(STORE);
+    r.onsuccess = () => res(r.result);
+    r.onerror = () => rej(r.error);
+  });
+}
+async function load() {
+  try {
+    const db = await idb();
+    const v = await new Promise((res, rej) => {
+      const q = db.transaction(STORE).objectStore(STORE).get(KEY);
+      q.onsuccess = () => res(q.result); q.onerror = () => rej(q.error);
+    });
+    if (v) { state = normalize(v); return; }
+  } catch (e) { console.warn("IndexedDB unavailable, fallback to localStorage", e); }
+  try { const s = localStorage.getItem(KEY); if (s) { state = normalize(JSON.parse(s)); return; } } catch (e) {}
+  // 初回: サンプルの行動を入れる
+  state = { actions: PRESETS.map((p, i) => ({ id: uid(), ...p, order: i, active: true })), logs: [], rewards: [] };
+  await save();
+}
+// おすすめ項目。マイナス単価はデバフ（連続日数は数えない）
+const PRESETS = [
+  { name: "筋トレ", price: 100, icon: "💪", habit: true },
+  { name: "読書", price: 50, icon: "📖", habit: true },
+  { name: "ストレッチ", price: 30, icon: "🧘", habit: true },
+  { name: "家事・小", price: 30, icon: "🧽" },
+  { name: "家事・中", price: 80, icon: "🧹" },
+  { name: "家事・大", price: 150, icon: "🪟" },
+  { name: "お弁当", price: 150, icon: "🍱" },
+  { name: "水筒", price: 40, icon: "🥤" },
+  { name: "自炊", price: 100, icon: "🍳" },
+  { name: "徒歩・自転車", price: 50, icon: "🚲" },
+  { name: "お菓子を買わなかった日", price: 40, icon: "🍬" },
+  { name: "夜更かし", price: -50, icon: "🌙" },
+  { name: "食べすぎ", price: -50, icon: "🍰" },
+  { name: "無駄遣い", price: -100, icon: "💸" },
+  { name: "水筒忘れ", price: -50, icon: "🧃" },
+  { name: "習慣スキップ", price: -30, icon: "😪" }
+];
+function addPresets() {
+  const have = new Set(state.actions.map(a => a.name));
+  const add = PRESETS.filter(p => !have.has(p.name));
+  if (!add.length) return toast("追加できる項目はありません");
+  if (!confirm(`おすすめ項目を${add.length}件追加します（既存の行動は変えません）。よろしいですか？`)) return;
+  add.forEach(p => state.actions.push({ id: uid(), ...p, habit: !!p.habit, order: state.actions.length, active: true }));
+  save(); render(); toast(`${add.length}件追加しました`);
+}
+/* ===== 自動バックアップ =====
+   ①日ごとのスナップショットを端末内に7日分保持（操作ミス・誤削除からの復元用）
+   ②最後にJSONを書き出した日を記録し、7日以上空いたらホームで促す
+   ※端末外には出ないので、Safariのデータ消去には効かない。外への保存は①の書き出しだけ。 */
+const SNAP = "snap-", KEEP_DAYS = 7, REMIND_DAYS = 7;
+async function kv(mode, fn) {
+  const db = await idb();
+  return new Promise((res, rej) => {
+    const t = db.transaction(STORE, mode), q = fn(t.objectStore(STORE));
+    t.oncomplete = () => res(q && q.result); t.onerror = () => rej(t.error);
+  });
+}
+async function snapshotIfNeeded() {
+  const today = dayKey(shift(new Date()));
+  if (!state.logs.length && !state.rewards.length) return;
+  try { // 当日分は保存のたびに上書き。前日までの分は凍結される
+
+    await kv("readwrite", s => s.put(JSON.parse(JSON.stringify(state)), SNAP + today));
+    const keys = (await kv("readonly", s => s.getAllKeys())).filter(k => String(k).startsWith(SNAP)).sort();
+    for (const k of keys.slice(0, Math.max(0, keys.length - KEEP_DAYS))) await kv("readwrite", s => s.delete(k));
+  } catch (e) { console.warn("snapshot failed", e); }
+}
+async function listSnapshots() {
+  try {
+    const keys = (await kv("readonly", s => s.getAllKeys())).filter(k => String(k).startsWith(SNAP)).sort().reverse();
+    return Promise.all(keys.map(async k => ({ key: k, day: k.slice(SNAP.length), data: await kv("readonly", s => s.get(k)) })));
+  } catch (e) { return []; }
+}
+const getLastExport = () => { try { return localStorage.getItem("kc-lastExport") || ""; } catch (e) { return ""; } };
+function exportStale() {
+  if (!state.logs.length && !state.rewards.length) return false;
+  const le = getLastExport();
+  if (!le) return true;
+  return (Date.now() - new Date(le).getTime()) / 86400000 >= REMIND_DAYS;
+}
+
+async function save() {
+  snapshotIfNeeded();
+  try { localStorage.setItem(KEY, JSON.stringify(state)); } catch (e) {}
+  try {
+    const db = await idb();
+    await new Promise((res, rej) => {
+      const t = db.transaction(STORE, "readwrite");
+      t.objectStore(STORE).put(state, KEY);
+      t.oncomplete = res; t.onerror = () => rej(t.error);
+    });
+  } catch (e) { console.warn("save failed", e); }
+}
+function normalize(v) {
+  return {
+    actions: Array.isArray(v.actions) ? v.actions : [],
+    logs: Array.isArray(v.logs) ? v.logs : [],
+    rewards: Array.isArray(v.rewards) ? v.rewards : [],
+    goal: Math.max(0, Math.round(Number(v.goal)) || 0) // 1日の目標金額（円）。0=未設定
+  };
+}
+const uid = () => Date.now().toString(36) + Math.random().toString(36).slice(2, 7);
+
+/* ===== 計算 ===== */
+const yen = n => (n < 0 ? "-" : "") + "¥" + Math.abs(n).toLocaleString("ja-JP");
+const sgn = n => (n < 0 ? "" : "+") + yen(n);
+const pad = n => String(n).padStart(2, "0");
+const dayKey = d => `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}`;
+const monthKey = d => `${d.getFullYear()}-${pad(d.getMonth() + 1)}`;
+/* 1日の区切りは朝4時（10/5 = 10/5 4:00 〜 10/6 3:59）。
+   時刻を4時間戻した「ずらし時刻」で日付・期間を判定する。dayKey/monthKey は暦どおりのまま、渡す前に shift する */
+const DAY_START_H = 4;
+const shift = d => new Date(+d - DAY_START_H * 3600e3);
+const ld = iso => shift(new Date(iso)); // 記録の「1日の区切りでの日付」
+const st = iso => +ld(iso);
+function balance() {
+  const earned = state.logs.reduce((s, l) => s + l.amount, 0);
+  const spent = state.rewards.filter(r => r.redeemedAt).reduce((s, r) => s + r.amount, 0);
+  return earned - spent;
+}
+function earnedIn(keyFn, key) {
+  return state.logs.filter(l => keyFn(ld(l.at)) === key).reduce((s, l) => s + l.amount, 0);
+}
+const esc = s => String(s).replace(/[&<>"']/g, c => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c]));
+const fmtTime = iso => { const d = new Date(iso); return `${pad(d.getHours())}:${pad(d.getMinutes())}`; };
+
+/* ===== UI ===== */
+let tab = "home";
+const $ = s => document.querySelector(s);
+const app = $("#app");
+
+function renderNav() {
+  const items = [["home", "🏠", "ホーム"], ["rewards", "🏆", "達成状況"], ["history", "📊", "履歴"],["settings", "⚙️", "設定"]];
+  $("#nav").innerHTML = items.map(([k, e, t]) =>
+    `<button class="${tab === k ? "on" : ""}" data-tab="${k}"><span class="e">${e}</span>${t}</button>`).join("");
+}
+// 写真スキンの背景写真（暗くぼかして全画面の奥に敷く）
+function applyPhotoBg() {
+  const t = currentTheme(), url = t.hero && themeImgs[t.pf + "bg"];
+  let el = document.getElementById("pbg");
+  if (!url) { if (el) el.remove(); return; }
+  if (!el) { el = document.createElement("div"); el.id = "pbg"; document.body.prepend(el); }
+  el.style.backgroundImage = `url("${url}")`;
+}
+function render() {
+  applyPhotoBg();
+  renderNav();
+  ({ home: renderHome, history: renderHistory,rewards: renderRewards, settings: renderSettings })[tab]();
+  const b = skinBanner(tab); // 世界観スキンのときだけ、各画面の先頭にキャラ＋一言
+  if (b) app.insertAdjacentHTML("afterbegin", b);
+}
+function go(t) { tab = t; render(); window.scrollTo(0, 0); }
+
+function balanceCard() {
+  const now = shift(new Date());
+  const th = currentTheme(), today = earnedIn(dayKey, dayKey(now));
+  // 台詞: 今日まだ記録なし→0 / 記録あり→1 / 残高が1000円以上→2（ランダムではなく状態で決める）
+  const line = th.mascot ? th.say[balance() >= 1000 ? 2 : today > 0 ? 1 : 0] : "";
+  return `<div class="balance">${th.mark ? `<span class="wm">${th.mark}</span>` : ""}${th.mascot ? `<div class="mascot"><div class="face">${faceHTML(th)}</div><div class="say">${esc(line)}</div></div>` : ""}<div class="lbl">いまの残高</div><div class="amt">${yen(balance())}</div>
+    <div class="row"><div>今日<b>${yen(earnedIn(dayKey, dayKey(now)))}</b></div>
+    <div>今月<b>${yen(earnedIn(monthKey, monthKey(now)))}</b></div></div>${goalBar(today)}</div>`;
+}
+// 今日の目標に対する進捗バー（目標未設定なら出さない）
+function goalBar(today) {
+  const g = state.goal;
+  if (!g) return "";
+  const pct = Math.max(0, Math.min(100, Math.round(today / g * 100)));
+  return `<div class="goalbar"><div class="gl"><span>今日の目標 ${yen(g)}</span><span>${today >= g ? "🎉 達成！" : `あと${yen(g - today)}`}</span></div>
+    <div class="gt"><i style="width:${pct}%"></i></div></div>`;
+}
+
+/* ===== グラフ ===== */
+// 履歴タブの絞り込み期間 rg（histRange の結果。null=全期間）の日別集計。
+// 期間の終わりが未来なら今日まで。全期間は最初の記録の日から。
+function dailySeries(rg) {
+  const now = shift(new Date()), t0 = new Date(now.getFullYear(), now.getMonth(), now.getDate());
+  const stamps = [...state.logs.map(l => l.at), ...state.rewards.filter(r => r.redeemedAt).map(r => r.redeemedAt)];
+  const first = stamps.length ? new Date(ld(stamps.reduce((a, b) => a < b ? a : b)).setHours(0, 0, 0, 0)) : t0;
+  const from = rg ? rg.from : +first, to = Math.min(rg ? rg.to : Infinity, +t0 + 864e5);
+  const days = [];
+  for (let t = new Date(from); +t < to; t = new Date(t.getFullYear(), t.getMonth(), t.getDate() + 1)) {
+    const e = new Date(t.getFullYear(), t.getMonth(), t.getDate() + 1);
+    days.push({ date: t, from: +t, to: +e, earned: 0, bal: 0 });
+  }
+  if (!days.length) days.push({ date: t0, from: +t0, to: +t0 + 864e5, earned: 0, bal: 0 });
+  const startBal = days[0].from;
+  let bal = state.logs.filter(l => st(l.at) < startBal).reduce((s, l) => s + l.amount, 0)
+    - state.rewards.filter(r => r.redeemedAt && st(r.redeemedAt) < startBal).reduce((s, r) => s + r.amount, 0);
+  for (const d of days) {
+    d.earned = state.logs.filter(l => { const t = st(l.at); return t >= d.from && t < d.to; }).reduce((s, l) => s + l.amount, 0);
+    const spent = state.rewards.filter(r => { if (!r.redeemedAt) return false; const t = st(r.redeemedAt); return t >= d.from && t < d.to; }).reduce((s, r) => s + r.amount, 0);
+    bal += d.earned - spent; d.bal = bal;
+  }
+  return days;
+}
+function svgChart(days, key, kind, goal) {
+  const W = 340, H = 170, L = 40, R = 8, T = 10, B = 22, w = W - L - R, h = H - T - B;
+  const vals = days.map(d => d[key]);
+  let max = Math.max(...vals, goal || 0, 1), min = Math.min(...vals, 0);
+  if (max === min) max = min + 1;
+  const x = i => L + (kind === "bar" ? (i + .5) / days.length * w : i / (days.length - 1) * w);
+  const y = v => T + h - (v - min) / (max - min) * h;
+  const md = d => `${d.date.getMonth() + 1}/${d.date.getDate()}`;
+  let s = `<svg viewBox="0 0 ${W} ${H}" width="100%" role="img" style="display:block">`;
+  [min, (min + max) / 2, max].forEach(v => {
+    s += `<line x1="${L}" x2="${W - R}" y1="${y(v)}" y2="${y(v)}" stroke="var(--line)"/><text x="${L - 4}" y="${y(v) + 4}" font-size="10" text-anchor="end" fill="var(--sub)">${Math.round(v).toLocaleString("ja-JP")}</text>`;
+  });
+  if (kind === "bar") {
+    const bw = Math.max(1, Math.min(22, w / days.length * .7));
+    days.forEach((d, i) => {
+      const ok = goal && d.earned >= goal;
+      const neg = d.earned < 0;
+      s += `<rect x="${x(i) - bw / 2}" y="${Math.min(y(d.earned), y(0))}" width="${bw}" height="${Math.abs(y(0) - y(d.earned))}" rx="2" fill="${neg ? "var(--red)" : "var(--g)"}" opacity="${goal && !ok && !neg ? .45 : 1}"/>`;
+    });
+    if (goal) s += `<line x1="${L}" x2="${W - R}" y1="${y(goal)}" y2="${y(goal)}" stroke="var(--red)" stroke-dasharray="4 3"/><text x="${L + 3}" y="${y(goal) - 3}" font-size="10" fill="var(--red)">目標 ${goal.toLocaleString("ja-JP")}</text>`;
+  } else {
+    s += `<polyline fill="none" stroke="var(--g)" stroke-width="2.5" stroke-linejoin="round" points="${days.map((d, i) => `${x(i)},${y(d[key])}`).join(" ")}"/>`;
+    if (days.length <= 31) s += days.map((d, i) => `<circle cx="${x(i)}" cy="${y(d[key])}" r="2.5" fill="var(--g)"/>`).join("");
+  }
+  s += `<text x="${L}" y="${H - 6}" font-size="10" fill="var(--sub)">${md(days[0])}</text><text x="${W - R}" y="${H - 6}" font-size="10" text-anchor="end" fill="var(--sub)">${md(days[days.length - 1])}</text></svg>`;
+  return s;
+}
+// 履歴タブ内に出す「平均・目標達成」カードとグラフ。rg は histRange() の結果
+function chartsHtml(rg) {
+  const days = dailySeries(rg), g = state.goal;
+  const total = days.reduce((s, d) => s + d.earned, 0);
+  const hit = g ? days.filter(d => d.earned >= g).length : 0;
+  let html = `<div class="card"><div class="item" style="border:none;padding:0;justify-content:space-around;text-align:center">
+      <div><div class="s">1日平均</div><b>${yen(Math.round(total / days.length))}</b></div>
+      <button data-edit-goal="1" style="background:none;border:none;color:inherit;padding:0"><div class="s">${g ? "目標達成" : "目標"}</div><b>${g ? `${hit}/${days.length}日` : "未設定"}</b><div class="s" style="font-size:10px;color:var(--g)">タップで${g ? "変更" : "設定"}</div></button></div></div>`;
+  if (days.length >= 2 && (state.logs.length || state.rewards.length)) {
+    html += `<div class="card"><div class="t" style="font-weight:600;margin-bottom:4px">日々の獲得額</div>${svgChart(days, "earned", "bar", g)}
+      ${g ? `<div class="s" style="font-size:11px;color:var(--sub)">濃い棒=目標達成、薄い棒=未達</div>` : `<div class="s" style="font-size:11px;color:var(--sub)">目標金額を決めると、目標線が出ます</div>`}</div>
+    <div class="card"><div class="t" style="font-weight:600;margin-bottom:4px">残高の推移</div>${svgChart(days, "bal", "line")}</div>`;
+  }
+  return html;
+}
+
+// 習慣の連続日数。その行動を記録した日が途切れず続いた日数。
+// 今日まだ未記録でも、昨日まで続いていれば「継続中」（今日やれば+1）。
+function streakOf(actionId) {
+  const days = new Set(state.logs.filter(l => l.actionId === actionId).map(l => dayKey(ld(l.at))));
+  const step = (d, n) => new Date(d.getFullYear(), d.getMonth(), d.getDate() + n);
+  const now = shift(new Date()), today = new Date(now.getFullYear(), now.getMonth(), now.getDate());
+  const doneToday = days.has(dayKey(today));
+  let cur = 0, d = doneToday ? today : step(today, -1);
+  while (days.has(dayKey(d))) { cur++; d = step(d, -1); }
+  let best = 0, run = 0, prev = null;
+  for (const k of [...days].sort()) {
+    const [y, m, dd] = k.split("-").map(Number), t = new Date(y, m - 1, dd);
+    run = prev && +step(prev, 1) === +t ? run + 1 : 1;
+    best = Math.max(best, run); prev = t;
+  }
+  return { cur, best, doneToday };
+}
+function streakBadge(a) {
+  if (!a.habit || a.price < 0) return "";
+  const s = streakOf(a.id);
+  return `<div class="streak ${s.doneToday ? "done" : ""}">${s.cur ? `🔥${s.cur}日連続` : "連続 0日"}${s.doneToday ? " ✓" : s.cur ? " (今日まだ)" : ""}</div>`;
+}
+
+function renderHome() {
+  // 今日記録済み（見え消し）の行動は下へ。それぞれの中は設定の並び順
+  const acts = state.actions.filter(a => a.active).sort((a, b) => doneToday(a.id) - doneToday(b.id) || a.order - b.order);
+  app.innerHTML = `<header><h1>行動貯金</h1></header>${exportStale() ? `<div class="card" style="background:var(--warn)"><div style="font-size:13px">バックアップが${getLastExport() ? REMIND_DAYS + "日以上" : "まだ"}取られていません。Safariのデータが消えると記録も消えます。</div><button class="btn sm block" id="export">今すぐ書き出す</button></div>` : ""}${balanceCard()}` +
+    (acts.length ? `<div class="grid">${acts.map(a =>
+      `<button class="act ${doneToday(a.id) ? "done" : ""}" data-rec="${a.id}"><div class="ic">${esc(a.icon)}</div><div class="nm">${esc(a.name)}</div><div class="pr ${a.price < 0 ? "neg" : ""}">${sgn(a.price)}</div>${streakBadge(a)}</button>`).join("")}</div>`
+      : `<div class="empty">行動がありません。<br>設定タブから追加してください。</div>`);
+}
+
+// 1日1項目1回。今日すでに記録した行動は、ホームで見え消し（取り消し線）になる
+const todayLog = actionId => state.logs.find(l => l.actionId === actionId && dayKey(ld(l.at)) === dayKey(shift(new Date())));
+const doneToday = actionId => !!todayLog(actionId);
+function record(actionId) {
+  const a = state.actions.find(x => x.id === actionId);
+  if (!a) return;
+  const prev = todayLog(actionId);
+  // 記録済みをタップ = その場で取り消し（1タップ）。間違えたらトーストの「戻す」で元の記録に戻る
+  if (prev) {
+    undoLog(prev.id);
+    return toast(`${a.icon} ${a.name} の記録を取り消しました`, "戻す", () => { state.logs.push(prev); save(); render(); });
+  }
+  const log = { id: uid(), actionId: a.id, name: a.name, icon: a.icon, at: new Date().toISOString(), amount: a.price };
+  state.logs.push(log);
+  save(); render();
+  if (navigator.vibrate) navigator.vibrate(15);
+  toast(`${a.icon} ${a.name} ${sgn(a.price)}`, "取り消す", () => { undoLog(log.id); });
+}
+function undoLog(id) {
+  state.logs = state.logs.filter(l => l.id !== id);
+  save(); render();
+}
+
+// 履歴の絞り込み。週は月曜始まり。offset は 0=今期間、-1=前の期間…
+const hist = { mode: "all", offset: 0 };
+function histRange() {
+  const now = shift(new Date()), day0 = new Date(now.getFullYear(), now.getMonth(), now.getDate());
+  const md = d => `${d.getMonth() + 1}/${d.getDate()}`;
+  if (hist.mode === "today") return { from: +day0, to: +new Date(day0.getFullYear(), day0.getMonth(), day0.getDate() + 1), label: dayKey(day0) };
+  if (hist.mode === "yesterday") {
+    const y = new Date(day0.getFullYear(), day0.getMonth(), day0.getDate() - 1);
+    return { from: +y, to: +day0, label: dayKey(y) };
+  }
+  if (hist.mode === "week") {
+    const dow = (day0.getDay() + 6) % 7;
+    const s = new Date(day0.getFullYear(), day0.getMonth(), day0.getDate() - dow + hist.offset * 7);
+    const e = new Date(s.getFullYear(), s.getMonth(), s.getDate() + 7);
+    const last = new Date(e.getFullYear(), e.getMonth(), e.getDate() - 1);
+    return { from: +s, to: +e, label: `${md(s)} 〜 ${md(last)}` };
+  }
+  if (hist.mode === "month") {
+    const s = new Date(day0.getFullYear(), day0.getMonth() + hist.offset, 1);
+    const e = new Date(s.getFullYear(), s.getMonth() + 1, 1);
+    return { from: +s, to: +e, label: `${s.getFullYear()}年${s.getMonth() + 1}月` };
+  }
+  return null;
+}
+
+function renderHistory() {
+  // 記録と交換を日付降順にまとめて表示
+  const ev = [
+    ...state.logs.map(l => ({ kind: "log", id: l.id, at: l.at, t: `${l.icon || ""} ${l.name}`, v: l.amount })),
+    ...state.rewards.filter(r => r.redeemedAt).map(r => ({ kind: "rw", id: r.id, at: r.redeemedAt, t: `🎁 ${r.name}`, v: -r.amount }))
+  ].sort((a, b) => b.at.localeCompare(a.at));
+  const rg = histRange();
+  const shown = rg ? ev.filter(e => { const t = st(e.at); return t >= rg.from && t < rg.to; }) : ev;
+  const earned = shown.filter(e => e.kind === "log" && e.v > 0).reduce((s, e) => s + e.v, 0);
+  const debuff = shown.filter(e => e.kind === "log" && e.v < 0).reduce((s, e) => s - e.v, 0);
+  const spent = shown.filter(e => e.kind === "rw").reduce((s, e) => s - e.v, 0);
+  const modes = [["all", "すべて"], ["today", "今日"], ["yesterday", "昨日"], ["week", "週"], ["month", "月"]];
+  let html = `<header><h1>履歴・グラフ</h1></header>
+    <div class="chips">${modes.map(([k, t]) => `<button class="chip ${hist.mode === k ? "on" : ""}" data-hmode="${k}">${t}</button>`).join("")}</div>`;
+  if (hist.mode === "week" || hist.mode === "month") {
+    html += `<div class="pager"><button class="btn sec sm" data-hnav="-1">‹ 前</button><b>${rg.label}</b>
+      <button class="btn sec sm" data-hnav="1" ${hist.offset >= 0 ? "disabled" : ""}>次 ›</button></div>`;
+  } else if (rg) html += `<div class="pager"><b>${rg.label}</b></div>`;
+  if (rg) html += `<div class="card"><div class="item" style="border:none;padding:0;justify-content:space-around;text-align:center">
+    <div><div class="s">獲得</div><div class="plus">${yen(earned)}</div></div>
+    <div><div class="s">デバフ</div><div class="minus">${yen(-debuff)}</div></div>
+    <div><div class="s">交換</div><div class="minus">${yen(-spent)}</div></div>
+    <div><div class="s">差引</div><b>${yen(earned - debuff - spent)}</b></div></div></div>`;
+  html += chartsHtml(rg);
+  if (!shown.length) html += `<div class="empty">${ev.length ? "この期間の記録はありません" : "まだ記録がありません"}</div>`;
+  let last = "";
+  for (const e of shown) {
+    const k = dayKey(ld(e.at));
+    if (k !== last) { html += `<div class="day">${k}</div>`; last = k; }
+    html += `<div class="card" style="padding:4px 14px"><div class="item"><div class="main"><div class="t">${esc(e.t)}</div><div class="s">${fmtTime(e.at)}${e.kind === "rw" ? " ・交換" : ""}</div></div>
+      <div class="${e.v >= 0 ? "plus" : "minus"}">${e.v >= 0 ? "+" : ""}${yen(e.v)}</div>
+      <button class="btn sec sm" data-del-${e.kind}="${e.id}">${e.kind === "log" ? "削除" : "戻す"}</button></div></div>`;
+  }
+  app.innerHTML = html;
+}
+
+// 達成状況タブ: 「習慣」「ご褒美」の切り替え。丸いタブ＋カード一覧＋右下の＋ボタン
+const ach = { sub: "habits" };
+function achHeader() {
+  return `<header><h1>達成状況</h1></header>
+    <div class="seg">${[["habits", "習慣"], ["rewards", "ご褒美"]].map(([k, t]) =>
+      `<button class="${ach.sub === k ? "on" : ""}" data-asub="${k}">${t}</button>`).join("")}</div>`;
+}
+const fab = () => `<button class="fab" data-fab="1" aria-label="追加">＋</button>`;
+const WEEK = ["日", "月", "火", "水", "木", "金", "土"];
+
+function renderRewards() {
+  const html = ach.sub === "habits" ? habitsHtml() : rewardsHtml();
+  app.innerHTML = achHeader() + html + fab();
+}
+function habitsHtml() {
+  const habits = state.actions.filter(a => a.habit).sort((a, b) => a.order - b.order);
+  if (!habits.length) return `<div class="empty">習慣にした行動がまだありません。<br>右下の＋で追加できます。</div>`;
+  return habits.map(a => {
+    const s = streakOf(a.id);
+    return `<button class="row-card" data-habit-open="${a.id}"><span class="ico">${esc(a.icon)}</span>
+      <span class="main"><span class="t">${esc(a.name)}${a.active ? "" : ' <span class="tag">無効</span>'}</span><span class="s">${yen(a.price)}</span></span>
+      <span class="flame ${s.cur ? "" : "off"}">${s.cur ? `🔥 ${s.cur}日継続中` : "未継続"}</span></button>`;
+  }).join("");
+}
+function rewardsHtml() {
+  const bal = balance();
+  const open = state.rewards.filter(r => !r.redeemedAt).sort((a, b) => a.amount - b.amount);
+  const done = state.rewards.filter(r => r.redeemedAt).sort((a, b) => b.redeemedAt.localeCompare(a.redeemedAt));
+  let html = open.length ? open.map(r => {
+    const ok = bal >= r.amount;
+    return `<button class="row-card" data-reward-open="${r.id}"><span class="ico">🎁</span>
+      <span class="main"><span class="t">${esc(r.name)}</span><span class="s">${yen(r.amount)}${ok ? " ・交換できます" : ` ・あと${yen(r.amount - bal)}`}</span></span>
+      <span class="chev">›</span></button>`;
+  }).join("") : `<div class="empty">欲しいご褒美を登録しましょう。<br>右下の＋で追加できます。</div>`;
+  if (done.length) {
+    html += `<h2>交換済み</h2><div class="card" style="padding:4px 14px">` + done.map(r =>
+      `<div class="item"><div class="main"><div class="t">${esc(r.name)}</div><div class="s">${dayKey(ld(r.redeemedAt))}</div></div><div class="minus">${yen(-r.amount)}</div></div>`).join("") + `</div>`;
+  }
+  return html;
+}
+// 習慣の詳細: 連続日数・直近7日・今日の記録・編集
+function habitSheet(id) {
+  const a = state.actions.find(x => x.id === id); if (!a) return;
+  const s = streakOf(a.id);
+  const now = shift(new Date()), t0 = new Date(now.getFullYear(), now.getMonth(), now.getDate());
+  const dayset = new Set(state.logs.filter(l => l.actionId === a.id).map(l => dayKey(ld(l.at))));
+  const week = [6, 5, 4, 3, 2, 1, 0].map(i => new Date(t0.getFullYear(), t0.getMonth(), t0.getDate() - i)).map(d =>
+    `<div class="wd ${dayset.has(dayKey(d)) ? "on" : ""}"><span>${WEEK[d.getDay()]}</span><i>${dayset.has(dayKey(d)) ? "✓" : ""}</i></div>`).join("");
+  const m = modal(`<h3>${esc(a.icon)} ${esc(a.name)}</h3>
+    <div style="display:flex;justify-content:space-around;text-align:center;margin:8px 0">
+      <div><div class="s" style="font-size:12px;color:var(--sub)">いまの連続</div><b style="font-size:22px;color:var(--g)">🔥${s.cur}日</b></div>
+      <div><div class="s" style="font-size:12px;color:var(--sub)">最長</div><b style="font-size:22px">${s.best}日</b></div></div>
+    <div class="week">${week}</div>
+    <div class="s" style="font-size:12px;color:var(--sub);margin-top:6px">${s.doneToday ? "今日は達成 ✓" : s.cur ? "今日まだ。やれば連続が続きます" : "今日まだ"}</div>
+    <div class="btns" style="flex-wrap:wrap">${a.active ? `<button class="btn" data-close="1" data-rec="${a.id}">${a.price < 0 ? "記録する" : "今日やった"} ${sgn(a.price)}</button>` : ""}
+      <button class="btn sec" data-close="1" data-edit-action="${a.id}">編集</button>
+      <button class="btn sec" data-close="1" data-habit-off="${a.id}">習慣から外す</button></div>`);
+}
+function rewardSheet(id) {
+  const r = state.rewards.find(x => x.id === id); if (!r) return;
+  const bal = balance(), ok = bal >= r.amount, pct = Math.min(100, Math.max(0, Math.round(bal / r.amount * 100)));
+  modal(`<h3>🎁 ${esc(r.name)}</h3>
+    <div style="font-size:20px;font-weight:700">${yen(r.amount)}</div>
+    <div class="s" style="font-size:12px;color:var(--sub);margin-top:4px">残高 ${yen(bal)} ・ ${ok ? "交換できます" : `あと${yen(r.amount - bal)}`}</div>
+    <div class="progress"><i style="width:${pct}%"></i></div>
+    <div class="btns"><button class="btn" data-close="1" data-redeem="${r.id}" ${ok ? "" : "disabled"}>交換</button>
+      <button class="btn sec" data-close="1" data-edit-reward="${r.id}">編集</button></div>`);
+}
+// ＋ボタン: 習慣タブ=習慣の追加（既存の行動を習慣にする or 新規）、ご褒美タブ=ご褒美の追加
+function habitAddSheet() {
+  const others = state.actions.filter(a => !a.habit && a.price >= 0).sort((a, b) => a.order - b.order);
+  modal(`<h3>習慣を追加</h3>
+    ${others.length ? `<div class="s" style="font-size:12px;color:var(--sub)">既存の行動を習慣にする</div>` + others.map(a =>
+      `<div class="item"><div style="font-size:24px">${esc(a.icon)}</div><div class="main"><div class="t">${esc(a.name)}</div><div class="s">${yen(a.price)}</div></div>
+        <button class="btn sm" data-close="1" data-habit-on="${a.id}">習慣にする</button></div>`).join("") : ""}
+    <div class="btns"><button class="btn sec" data-close="1">閉じる</button><button class="btn" data-close="1" data-edit-action="" data-newhabit="1">新しい行動を作る</button></div>`);
+}
+
+// 着せ替え欄の開閉。既定は開く。状態は localStorage "kc-themeOpen" に保存
+const themeOpen = () => { try { return localStorage.getItem("kc-themeOpen") !== "0"; } catch (e) { return themeOpenMem; } };
+let themeOpenMem = true;
+function toggleThemeOpen() {
+  const v = !themeOpen(); themeOpenMem = v;
+  try { localStorage.setItem("kc-themeOpen", v ? "1" : "0"); } catch (e) {}
+  render();
+}
+/* ユーザー自身の画像（キャラのアイコン）。IndexedDB のキー "timg-<テーマID>" に端末内のみ保存。バックアップJSONには含めない */
+const themeImgs = {};
+const faceHTML = t => themeImgs[t.id] ? `<img src="${themeImgs[t.id]}" alt="">` : t.mascot || t.swatch || "";
+let imgKey = ""; // いま設定中の画像のキー（キャラ系はテーマID、スキンは "skin-<画面>"）
+async function loadThemeImgs() {
+  const keys = [...THEMES.filter(x => x.mascot).map(x => x.id), ...SKIN_SCREENS.map(([k]) => "skin-" + k),
+    "ichi-bg", ...SKIN_SCREENS.map(([k]) => "ichi-" + k)];
+  for (const k of keys) {
+    try { const v = await kv("readonly", s => s.get("timg-" + k)); if (v) themeImgs[k] = v; } catch (e) {}
+  }
+}
+async function setThemeImg(file) {
+  if (!imgKey) return;
+  await storeImg(imgKey, file); render(); toast("画像を設定しました");
+}
+// 写真スキン用: 複数の写真をまとめて選ぶと、縦長なら背景（最初の1枚）、それ以外はホーム→履歴→グラフ→ご褒美→設定の順にヒーローへ振り分ける
+async function bulkImg(files) {
+  const heroes = SKIN_SCREENS.map(([k]) => "ichi-" + k);
+  let hi = 0, bg = false;
+  for (const f of files) {
+    const b = await createImageBitmap(f), portrait = b.height / b.width >= 1.3;
+    if (b.close) b.close();
+    if (portrait && !bg) { await storeImg("ichi-bg", f); bg = true; }
+    else if (hi < heroes.length) await storeImg(heroes[hi++], f);
+  }
+  render(); toast(`${Math.min(files.length, hi + (bg ? 1 : 0))}枚を設定しました`);
+}
+async function storeImg(key, file) {
+  const bmp = await createImageBitmap(file), c = document.createElement("canvas");
+  // 用途ごとに縦横比を変えて切り抜く: 背景=縦長9:16、ヒーロー=横長2:1、それ以外=正方形。縦は上寄り（顔が写りやすい）
+  const [w, h] = key === "ichi-bg" ? [540, 960] : key.startsWith("ichi-") ? [720, 360] : [192, 192];
+  c.width = w; c.height = h;
+  let sw = bmp.width, sh = sw * h / w;
+  if (sh > bmp.height) { sh = bmp.height; sw = sh * w / h; }
+  c.getContext("2d").drawImage(bmp, (bmp.width - sw) / 2, (bmp.height - sh) * 0.2, sw, sh, 0, 0, w, h);
+  const url = c.toDataURL("image/jpeg", 0.85);
+  await kv("readwrite", s => s.put(url, "timg-" + key));
+  themeImgs[key] = url;
+}
+async function clearThemeImg(key) {
+  try { await kv("readwrite", s => s.delete("timg-" + key)); } catch (e) {}
+  delete themeImgs[key]; render();
+}
+function imgPanel() {
+  const t = currentTheme(), note = `端末内の画像を選ぶと差し替わります。画像はこの端末の中だけに保存され、バックアップや外部には含まれません。`;
+  const row = (key, label) => `<div class="item"><div class="main"><div class="t">${label}</div></div>
+    <button class="btn sec sm" data-img-pick="${key}">画像を選ぶ</button>${themeImgs[key] ? `<button class="btn sec sm" data-img-clear="${key}">戻す</button>` : ""}</div>`;
+  if (t.hero) return `<div class="card" style="margin-top:10px"><div style="font-weight:600;font-size:13px">写真の設定</div>
+    <div style="font-size:12px;color:var(--sub);margin-top:4px">${note}ヒーローは横長（2:1）に切り抜くので、人物が中央〜上寄りの写真が向いています。画面ごとの写真が未設定なら、ホームの写真を使います。</div>
+    <button class="btn block" data-img-bulk="1">写真をまとめて選ぶ（自動で振り分け）</button>
+    <div style="font-size:11px;color:var(--sub);margin:4px 0 6px">縦長の写真は背景に、それ以外は ホーム→履歴→グラフ→ご褒美→設定 の順にヒーローになります。</div>
+    ${row("ichi-home", "ホームのヒーロー写真")}${SKIN_SCREENS.filter(([k]) => k !== "home").map(([k, n]) => row("ichi-" + k, n + "のヒーロー写真（任意）")).join("")}${row("ichi-bg", "背景の写真（縦長が向いています）")}</div>`;
+  if (t.skin) return `<div class="card" style="margin-top:10px"><div style="font-weight:600;font-size:13px">画面ごとのキャラ画像</div>
+    <div style="font-size:12px;color:var(--sub);margin-top:4px">${note}未設定の画面は、付属のオリジナルキャラが出ます。</div>${SKIN_SCREENS.map(([k, n]) => row("skin-" + k, n)).join("")}</div>`;
+  if (!t.mascot) return "";
+  return `<div class="card" style="margin-top:10px"><div style="font-weight:600;font-size:13px">「${esc(t.name)}」のキャラ画像</div>
+    <div style="font-size:12px;color:var(--sub);margin-top:4px">${note}</div>${row(t.id, "アイコン")}</div>`;
+}
+function themePicker() {
+  const cur = getThemeId(), groups = [["base", "ノーマル"], ["color", "カラー"], ["char", "キャラクター"], ["bleach", "BLEACH"], ["skin", "世界観スキン（全画面）"]];
+  return groups.map(([g, label]) => `<div class="s" style="font-size:12px;color:var(--sub);margin:8px 2px 4px">${label}</div><div class="themes">` +
+    THEMES.filter(t => t.group === g).map(t =>
+      `<button class="tm ${cur === t.id ? "on" : ""}" data-theme="${t.id}"><div class="sw" style="background:linear-gradient(135deg,${t.g},${t.gd})">${faceHTML(t)}</div>${t.name}</button>`).join("") + `</div>`).join("") + imgPanel();
+}
+function renderSettings() {
+  const acts = [...state.actions].sort((a, b) => a.order - b.order);
+  app.innerHTML = `<header><h1>設定</h1></header>
+    <h2>行動の管理</h2>
+    <div class="card" style="padding:4px 14px">${acts.length ? acts.map((a, i) => `<div class="item">
+      <div style="font-size:26px">${esc(a.icon)}</div>
+      <div class="main"><div class="t">${esc(a.name)} ${a.active ? "" : '<span class="tag">無効</span>'} ${a.habit ? '<span class="tag">習慣</span>' : ""}</div><div class="s">${yen(a.price)}${a.habit ? (s => ` ・連続${s.cur}日（最長${s.best}日）`)(streakOf(a.id)) : ""}</div></div>
+      <button class="btn sec sm" data-move="${a.id}:-1" ${i === 0 ? "disabled" : ""}>↑</button>
+      <button class="btn sec sm" data-move="${a.id}:1" ${i === acts.length - 1 ? "disabled" : ""}>↓</button>
+      <button class="btn sec sm" data-edit-action="${a.id}">編集</button></div>`).join("") : `<div class="empty">行動がありません</div>`}</div>
+    <button class="btn block" data-edit-action="">＋行動を追加</button>
+    <button class="btn sec block" id="presets">おすすめ項目を追加（筋トレ・家事・節約・デバフなど）</button>
+    <h2>1日の目標金額</h2>
+    <div class="card"><div class="s" style="font-size:12px;color:var(--sub)">ホームに進捗バー、グラフに目標線が出ます。0 で目標なし。</div>
+      <div style="display:flex;gap:8px;margin-top:8px"><input type="number" id="goal-in" value="${state.goal || 0}" min="0" inputmode="numeric" style="flex:1">
+      <button class="btn" id="goal-save">保存</button></div></div>
+    <button class="fold" data-fold="1" aria-expanded="${themeOpen()}"><span>着せ替え</span><span>${themeOpen() ? "▲ 隠す" : "▼ 表示"}</span></button>${themeOpen() ? themePicker() : ""}
+    <h2>バックアップ</h2>
+    <div class="card"><div class="s" style="font-size:12px;color:var(--sub)">Safariのデータを消すと記録も消えます。定期的に書き出してください。</div>
+      <div style="font-size:12px;margin-top:6px">最後の書き出し: ${getLastExport() ? dayKey(new Date(getLastExport())) : "なし"}</div>
+      <button class="btn block" id="export">JSONを書き出す（ファイルに保存）</button>
+      <button class="btn sec block" id="snaps">自動バックアップから復元（直近${KEEP_DAYS}日）</button>
+      <button class="btn sec block" id="import">JSONを読み込む</button></div>
+    <h2>データ</h2>
+    <button class="btn dng block" id="reset">全データを削除</button>`;
+}
+
+function goalForm() {
+  const m = modal(`<h3>1日の目標金額</h3>
+    <label>金額（円）。0 で目標なし</label><input type="number" id="f-goal" value="${state.goal || 0}" inputmode="numeric" min="0">
+    <div class="btns"><button class="btn sec" id="f-cancel">キャンセル</button><button class="btn" id="f-ok">保存</button></div>`);
+  m.querySelector("#f-cancel").onclick = () => m.remove();
+  m.querySelector("#f-ok").onclick = () => {
+    const v = Math.round(Number(m.querySelector("#f-goal").value));
+    if (!(v >= 0)) { alert("0以上の金額を入力してください"); return; }
+    state.goal = v; save(); m.remove(); render();
+    toast(v ? `目標を ${yen(v)} にしました` : "目標を解除しました");
+  };
+}
+
+/* ===== モーダル ===== */
+function modal(html) {
+  const m = document.createElement("div");
+  m.className = "modal";
+  m.innerHTML = `<div class="sheet">${html}</div>`;
+  m.addEventListener("click", e => { if (e.target === m) m.remove(); });
+  document.body.appendChild(m);
+  return m;
+}
+function actionForm(id, habitDefault) {
+  const a = state.actions.find(x => x.id === id) || { name: "", price: 100, icon: "⭐", active: true, habit: !!habitDefault };
+  const m = modal(`<h3>${id ? "行動を編集" : "行動を追加"}</h3>
+    <label>名前</label><input type="text" id="f-name" value="${esc(a.name)}" maxlength="30">
+    <label>単価（円）。マイナスにするとデバフ（引かれる行動）</label><input type="number" id="f-price" value="${a.price}" inputmode="text" step="1">
+    <label>アイコン（絵文字）</label><input type="text" id="f-icon" value="${esc(a.icon)}" maxlength="4">
+    <label style="display:flex;gap:8px;align-items:center;color:var(--tx);font-size:14px"><input type="checkbox" id="f-active" ${a.active ? "checked" : ""}>ホームに表示する</label>
+    <label style="display:flex;gap:8px;align-items:center;color:var(--tx);font-size:14px"><input type="checkbox" id="f-habit" ${a.habit ? "checked" : ""}>習慣にする（連続日数を数える）</label>
+    <div style="font-size:11px;color:var(--sub)">オフ＝たまにやる行動。連続日数は出ません。デバフ（マイナス単価）は習慣にできません。</div>
+    <div class="btns">${id ? '<button class="btn dng" id="f-del">削除</button>' : ""}<button class="btn sec" id="f-cancel">キャンセル</button><button class="btn" id="f-ok">保存</button></div>`);
+  m.querySelector("#f-cancel").onclick = () => m.remove();
+  m.querySelector("#f-ok").onclick = () => {
+    const name = m.querySelector("#f-name").value.trim();
+    const price = Math.round(Number(m.querySelector("#f-price").value));
+    if (!name || !Number.isFinite(price)) { alert("名前と単価（整数。マイナス可）を入力してください"); return; }
+    const icon = m.querySelector("#f-icon").value.trim() || "⭐";
+    const active = m.querySelector("#f-active").checked;
+    const habit = m.querySelector("#f-habit").checked && price >= 0;
+    if (id) Object.assign(a, { name, price, icon, active, habit });
+    else state.actions.push({ id: uid(), name, price, icon, active, habit, order: state.actions.length });
+    save(); m.remove(); render();
+  };
+  if (id) m.querySelector("#f-del").onclick = () => {
+    if (!confirm("この行動を削除しますか？\n（過去の記録は残ります）")) return;
+    state.actions = state.actions.filter(x => x.id !== id);
+    save(); m.remove(); render();
+  };
+}
+function rewardForm(id) {
+  const r = state.rewards.find(x => x.id === id) || { name: "", amount: 1000 };
+  const m = modal(`<h3>${id ? "ご褒美を編集" : "ご褒美を追加"}</h3>
+    <label>名前</label><input type="text" id="f-name" value="${esc(r.name)}" maxlength="30">
+    <label>金額（円）</label><input type="number" id="f-amt" value="${r.amount}" inputmode="numeric" min="1">
+    <div class="btns">${id ? '<button class="btn dng" id="f-del">削除</button>' : ""}<button class="btn sec" id="f-cancel">キャンセル</button><button class="btn" id="f-ok">保存</button></div>`);
+  m.querySelector("#f-cancel").onclick = () => m.remove();
+  m.querySelector("#f-ok").onclick = () => {
+    const name = m.querySelector("#f-name").value.trim();
+    const amount = Math.round(Number(m.querySelector("#f-amt").value));
+    if (!name || !(amount > 0)) { alert("名前と金額（1以上）を入力してください"); return; }
+    if (id) Object.assign(r, { name, amount });
+    else state.rewards.push({ id: uid(), name, amount, redeemedAt: null });
+    save(); m.remove(); render();
+  };
+  if (id) m.querySelector("#f-del").onclick = () => {
+    if (!confirm("このご褒美を削除しますか？")) return;
+    state.rewards = state.rewards.filter(x => x.id !== id);
+    save(); m.remove(); render();
+  };
+}
+
+/* ===== トースト ===== */
+let toastTimer;
+function toast(msg, label, fn) {
+  const t = $("#toast");
+  t.innerHTML = `<span>${esc(msg)}</span>` + (label ? `<button>${label}</button>` : "");
+  t.style.display = "flex";
+  if (label) t.querySelector("button").onclick = () => { fn(); t.style.display = "none"; };
+  clearTimeout(toastTimer);
+  toastTimer = setTimeout(() => t.style.display = "none", 4000);
+}
+
+/* ===== バックアップ ===== */
+async function exportJSON() {
+  const data = JSON.stringify({ app: "kodo-chokin", version: 1, exportedAt: new Date().toISOString(), ...state }, null, 2);
+  const name = `kodo-chokin-${dayKey(new Date())}.json`;
+  const file = new File([data], name, { type: "application/json" });
+  let done = false;
+  // iPhoneでは共有シートから「ファイルに保存」(iCloud Drive等) を選べる
+  if (navigator.canShare && navigator.canShare({ files: [file] })) {
+    try { await navigator.share({ files: [file], title: "行動貯金バックアップ" }); done = true; }
+    catch (e) { if (e.name === "AbortError") return; }
+  }
+  if (!done) {
+    const url = URL.createObjectURL(new Blob([data], { type: "application/json" }));
+    const a = document.createElement("a");
+    a.href = url; a.download = name;
+    document.body.appendChild(a); a.click(); a.remove();
+    setTimeout(() => URL.revokeObjectURL(url), 1000);
+  }
+  try { localStorage.setItem("kc-lastExport", new Date().toISOString()); } catch (e) {}
+  render(); toast("書き出しました");
+}
+async function snapshotsDialog() {
+  const snaps = await listSnapshots();
+  const m = modal(`<h3>自動バックアップから復元</h3>
+    <div style="font-size:12px;color:var(--sub)">端末内に直近${KEEP_DAYS}日分を保持しています。選んだ日の状態に置き換わります。</div>` +
+    (snaps.length ? snaps.map(s => `<div class="item"><div class="main"><div class="t">${s.day}</div>
+      <div class="s">記録${s.data.logs.length}件・ご褒美${s.data.rewards.length}件</div></div>
+      <button class="btn sm" data-snap="${s.day}">復元</button></div>`).join("") : `<div class="empty">まだありません</div>`) +
+    `<div class="btns"><button class="btn sec" id="f-cancel">閉じる</button></div>`);
+  m.querySelector("#f-cancel").onclick = () => m.remove();
+  m.querySelectorAll("[data-snap]").forEach(b => b.onclick = async () => {
+    const s = snaps.find(x => x.day === b.dataset.snap);
+    if (!s || !confirm(`${s.day} の状態に置き換えます。現在のデータは失われます。よろしいですか？`)) return;
+    state = normalize(s.data); await save(); m.remove(); render(); toast("復元しました");
+  });
+}
+$("#file").addEventListener("change", async e => {
+  const f = e.target.files[0]; e.target.value = "";
+  if (!f) return;
+  try {
+    const v = JSON.parse(await f.text());
+    if (!Array.isArray(v.actions) || !Array.isArray(v.logs) || !Array.isArray(v.rewards)) throw new Error("形式が違います");
+    if (!confirm(`現在のデータを置き換えます。\n行動${v.actions.length}件・記録${v.logs.length}件・ご褒美${v.rewards.length}件を読み込みますか？`)) return;
+    state = normalize(v); await save(); render(); toast("読み込みました");
+  } catch (err) { alert("読み込みに失敗しました: " + err.message); }
+});
+
+/* ===== イベント ===== */
+document.addEventListener("click", e => {
+  const el = e.target.closest("button"); if (!el) return;
+  const d = el.dataset;
+  if (d.close) { const mo = el.closest(".modal"); if (mo) mo.remove(); }
+  if (d.habitOpen) return habitSheet(d.habitOpen);
+  if (d.rewardOpen) return rewardSheet(d.rewardOpen);
+  if (d.fab) return ach.sub === "habits" ? habitAddSheet() : rewardForm("");
+  if (d.tab) return go(d.tab);
+  if (d.rec) return record(d.rec);
+  if (d.fold) return toggleThemeOpen();
+  if (d.imgBulk) return $("#imgs").click();
+  if (d.imgPick) { imgKey = d.imgPick; return $("#img").click(); }
+  if (d.imgClear) return clearThemeImg(d.imgClear);
+  if (d.theme) {
+    setThemeId(d.theme); return render();
+  }
+  if (d.hmode) { hist.mode = d.hmode; hist.offset = 0; return render(); }
+  if (d.hnav) { hist.offset = Math.min(0, hist.offset + Number(d.hnav)); return render(); }
+  if (d.delLog) { undoLog(d.delLog); return toast("記録を削除しました"); }
+  if (d.delRw !== undefined) {
+    const r = state.rewards.find(x => x.id === d.delRw);
+    if (r) { r.redeemedAt = null; save(); render(); toast("交換を取り消しました"); }
+    return;
+  }
+  if (d.redeem) {
+    const r = state.rewards.find(x => x.id === d.redeem);
+    if (r && balance() >= r.amount && confirm(`「${r.name}」と交換しますか？\n${yen(r.amount)} が残高から引かれます`)) {
+      r.redeemedAt = new Date().toISOString(); save(); render();
+    }
+    return;
+  }
+  if (d.editReward !== undefined) return rewardForm(d.editReward);
+  if (d.editAction !== undefined) return actionForm(d.editAction, d.newhabit);
+  if (d.move) {
+    const [id, dir] = d.move.split(":");
+    const list = [...state.actions].sort((a, b) => a.order - b.order);
+    const i = list.findIndex(x => x.id === id), j = i + Number(dir);
+    if (j >= 0 && j < list.length) { [list[i], list[j]] = [list[j], list[i]]; list.forEach((x, n) => x.order = n); save(); render(); }
+    return;
+  }
+  if (d.editGoal) return goalForm();
+  if (d.asub) { ach.sub = d.asub; return render(); }
+  if (d.habitOn || d.habitOff) {
+    const a = state.actions.find(x => x.id === (d.habitOn || d.habitOff));
+    if (a) { a.habit = !!d.habitOn; save(); render(); }
+    return;
+  }
+  if (el.id === "goal-save") {
+    const v = Math.round(Number($("#goal-in").value));
+    if (!(v >= 0)) return alert("0以上の金額を入力してください");
+    state.goal = v; save(); return toast(v ? `目標を ${yen(v)} にしました` : "目標を解除しました");
+  }
+  if (el.id === "presets") return addPresets();
+  if (el.id === "export") return exportJSON();
+  if (el.id === "snaps") return snapshotsDialog();
+  if (el.id === "import") return $("#file").click();
+  if (el.id === "reset" && confirm("全データを削除します。よろしいですか？\n（先にJSON書き出しを推奨）") && confirm("本当に削除しますか？")) {
+    state = { actions: [], logs: [], rewards: [] }; save(); render();
+  }
+});
+
+/* ===== 起動 ===== */
+$("#img").addEventListener("change", async e => {
+  const f = e.target.files[0]; e.target.value = "";
+  if (!f) return;
+  try { await setThemeImg(f); } catch (err) { alert("画像を設定できませんでした: " + err.message); }
+});
+$("#imgs").addEventListener("change", async e => {
+  const fs = [...e.target.files]; e.target.value = "";
+  if (!fs.length) return;
+  try { await bulkImg(fs); } catch (err) { alert("画像を設定できませんでした: " + err.message); }
+});
+applyFx(currentTheme());
+load().then(loadThemeImgs).then(render);
+if ("serviceWorker" in navigator) navigator.serviceWorker.register("sw.js").catch(() => {});
+</script>
+</body>
+</html>
