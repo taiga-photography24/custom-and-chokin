@@ -325,23 +325,46 @@ async function load() {
 }
 // おすすめ項目。マイナス単価はデバフ（連続日数は数えない）
 const PRESETS = [
+  // 定番（習慣）
   { name: "筋トレ", price: 100, icon: "💪", habit: true },
   { name: "読書", price: 50, icon: "📖", habit: true },
-  { name: "ストレッチ", price: 30, icon: "🧘", habit: true },
-  { name: "家事・小", price: 30, icon: "🧽" },
-  { name: "家事・中", price: 80, icon: "🧹" },
-  { name: "家事・大", price: 150, icon: "🪟" },
-  { name: "お弁当", price: 150, icon: "🍱" },
-  { name: "水筒", price: 40, icon: "🥤" },
-  { name: "自炊", price: 100, icon: "🍳" },
-  { name: "徒歩・自転車", price: 50, icon: "🚲" },
-  { name: "お菓子を買わなかった日", price: 40, icon: "🍬" },
-  { name: "夜更かし", price: -50, icon: "🌙" },
-  { name: "食べすぎ", price: -50, icon: "🍰" },
-  { name: "無駄遣い", price: -100, icon: "💸" },
-  { name: "水筒忘れ", price: -50, icon: "🧃" },
-  { name: "習慣スキップ", price: -30, icon: "😪" }
+  { name: "ストレッチ", price: 50, icon: "🧘", habit: true },
+  { name: "英語勉強", price: 50, icon: "🔤", habit: true },
+  { name: "資格勉強", price: 50, icon: "📝", habit: true },
+  { name: "音楽の勉強", price: 50, icon: "🎵", habit: true },
+  // その他（家事・節約）
+  { name: "皿洗い", price: 50, icon: "🍽️" },
+  { name: "お弁当", price: 300, icon: "🍱" },
+  { name: "水筒", price: 100, icon: "🥤" },
+  { name: "洗濯", price: 100, icon: "👕" },
+  { name: "自炊", price: 200, icon: "🍳" },
+  { name: "掃除", price: 100, icon: "🧹" },
+  // デバフ
+  { name: "夜更かし", price: -100, icon: "🌙" },
+  { name: "自慰行為", price: -100, icon: "🚫" }
 ];
+// 今の行動一覧を「デフォルト」として保存 / デフォルトに戻す。デフォルトはバックアップJSONにも含まれる
+function setDefaults() {
+  const list = [...state.actions].sort((a, b) => a.order - b.order);
+  if (!list.length) return alert("保存する項目がありません");
+  if (!confirm(`今の${list.length}項目（名前・単価・アイコン・習慣・表示）をデフォルトとして保存します。\n以前のデフォルトは上書きされます。よろしいですか？`)) return;
+  state.defaults = list.map(a => ({ name: a.name, price: a.price, icon: a.icon, habit: !!a.habit, active: a.active !== false }));
+  state.defaultsAt = new Date().toISOString();
+  save(); render(); toast(`デフォルトを保存しました（${list.length}項目）`);
+}
+function restoreDefaults() {
+  const src = state.defaults || PRESETS.map(p => ({ ...p, habit: !!p.habit, active: true }));
+  const names = new Set(src.map(d => d.name));
+  const extra = state.actions.filter(a => !names.has(a.name));
+  if (!confirm(`${state.defaults ? "保存したデフォルト" : "おすすめ項目（デフォルト未保存のため）"}（${src.length}項目）に戻します。\n・同じ名前の行動は、単価・アイコン・習慣・表示を上書きします\n・無い項目は追加します\n・デフォルトにない項目（${extra.length}件）は非表示にします（削除はしません）\n記録は変わりません。よろしいですか？`)) return;
+  src.forEach((d, i) => {
+    const v = { price: d.price, icon: d.icon, habit: !!d.habit, active: d.active !== false, order: i };
+    const a = state.actions.find(x => x.name === d.name);
+    if (a) Object.assign(a, v); else state.actions.push({ id: uid(), name: d.name, ...v });
+  });
+  extra.forEach((a, j) => { a.active = false; a.order = src.length + j; });
+  save(); render(); toast("デフォルトに戻しました");
+}
 function addPresets() {
   const have = new Set(state.actions.map(a => a.name));
   const add = PRESETS.filter(p => !have.has(p.name));
@@ -403,7 +426,9 @@ function normalize(v) {
     actions: Array.isArray(v.actions) ? v.actions : [],
     logs: Array.isArray(v.logs) ? v.logs : [],
     rewards: Array.isArray(v.rewards) ? v.rewards : [],
-    goal: Math.max(0, Math.round(Number(v.goal)) || 0) // 1日の目標金額（円）。0=未設定
+    goal: Math.max(0, Math.round(Number(v.goal)) || 0), // 1日の目標金額（円）。0=未設定
+    defaults: Array.isArray(v.defaults) ? v.defaults : null, // 「デフォルト」に保存した項目（名前・単価・アイコン・習慣・表示）
+    defaultsAt: v.defaultsAt || null
   };
 }
 const uid = () => Date.now().toString(36) + Math.random().toString(36).slice(2, 7);
@@ -456,7 +481,7 @@ function render() {
   const b = skinBanner(tab); // 世界観スキンのときだけ、各画面の先頭にキャラ＋一言
   if (b) app.insertAdjacentHTML("afterbegin", b);
 }
-function go(t) { tab = t; render(); window.scrollTo(0, 0); }
+function go(t) { tab = t; if (t !== "home") homeDay = 0; render(); window.scrollTo(0, 0); }
 
 function balanceCard() {
   const now = shift(new Date());
@@ -569,29 +594,41 @@ function streakBadge(a) {
 function renderHome() {
   // 今日記録済み（見え消し）の行動は下へ。それぞれの中は設定の並び順
   const acts = state.actions.filter(a => a.active).sort((a, b) => doneToday(a.id) - doneToday(b.id) || a.order - b.order);
+  const core = acts.filter(a => a.habit && a.price >= 0), others = acts.filter(a => !(a.habit && a.price >= 0));
   app.innerHTML = `<header><h1>行動貯金</h1></header>${exportStale() ? `<div class="card" style="background:var(--warn)"><div style="font-size:13px">バックアップが${getLastExport() ? REMIND_DAYS + "日以上" : "まだ"}取られていません。Safariのデータが消えると記録も消えます。</div><button class="btn sm block" id="export">今すぐ書き出す</button></div>` : ""}${balanceCard()}` +
-    (acts.length ? `<div class="grid">${acts.map(a =>
-      `<button class="act ${doneToday(a.id) ? "done" : ""}" data-rec="${a.id}"><div class="ic">${esc(a.icon)}</div><div class="nm">${esc(a.name)}</div><div class="pr ${a.price < 0 ? "neg" : ""}">${sgn(a.price)}</div>${streakBadge(a)}</button>`).join("")}</div>`
+    `<div class="seg">${[[0, "今日"], [-1, "昨日"]].map(([k, t]) => `<button class="${homeDay === k ? "on" : ""}" data-hday="${k}">${t}</button>`).join("")}</div>` +
+    (homeDay ? `<div class="s" style="font-size:12px;color:var(--sub);margin:4px 2px 8px">${dayKey(homeDate())} の分を記録しています。もう一度タップで取り消し。</div>` : "") +
+    (acts.length ? `<div class="grid">${core.map(actBtn).join("")}</div>` + (others.length ? (core.length ? `<button class="fold" data-others="1" aria-expanded="${othersOpen}"><span>その他（${others.length}）</span><span>${othersOpen ? "▲ 隠す" : "▼ 表示"}</span></button>` : "") +
+      (othersOpen || !core.length ? `<div class="grid">${others.map(actBtn).join("")}</div>` : "") : "")
       : `<div class="empty">行動がありません。<br>設定タブから追加してください。</div>`);
 }
+// 定番 = 習慣にしている行動（連続日数を数える）。それ以外（家事・節約・デバフなど）は「その他」に畳む
+let othersOpen = false;
+const actBtn = a => `<button class="act ${doneToday(a.id) ? "done" : ""}" data-rec="${a.id}"><div class="ic">${esc(a.icon)}</div><div class="nm">${esc(a.name)}</div><div class="pr ${a.price < 0 ? "neg" : ""}">${sgn(a.price)}</div>${streakBadge(a)}</button>`;
 
-// 1日1項目1回。今日すでに記録した行動は、ホームで見え消し（取り消し線）になる
-const todayLog = actionId => state.logs.find(l => l.actionId === actionId && dayKey(ld(l.at)) === dayKey(shift(new Date())));
+// ホームで操作する日。0=今日、-1=昨日（昨日分を後から記録する）。ホーム以外へ移ると今日に戻る
+let homeDay = 0;
+const homeDate = () => { const t = shift(new Date()); return new Date(t.getFullYear(), t.getMonth(), t.getDate() + homeDay); };
+// 1日1項目1回。操作中の日にすでに記録した行動は、ホームで見え消し（取り消し線）になる
+const todayLog = actionId => state.logs.find(l => l.actionId === actionId && dayKey(ld(l.at)) === dayKey(homeDate()));
 const doneToday = actionId => !!todayLog(actionId);
 function record(actionId) {
   const a = state.actions.find(x => x.id === actionId);
   if (!a) return;
   const prev = todayLog(actionId);
+  const tag = homeDay ? "【昨日】" : "";
   // 記録済みをタップ = その場で取り消し（1タップ）。間違えたらトーストの「戻す」で元の記録に戻る
   if (prev) {
     undoLog(prev.id);
-    return toast(`${a.icon} ${a.name} の記録を取り消しました`, "戻す", () => { state.logs.push(prev); save(); render(); });
+    return toast(`${tag}${a.icon} ${a.name} の記録を取り消しました`, "戻す", () => { state.logs.push(prev); save(); render(); });
   }
-  const log = { id: uid(), actionId: a.id, name: a.name, icon: a.icon, at: new Date().toISOString(), amount: a.price };
+  // 昨日分は、その日の20:00（4時区切りでも必ずその日に入る時刻）で記録する
+  const d = homeDate(), at = homeDay ? new Date(d.getFullYear(), d.getMonth(), d.getDate(), 20, 0).toISOString() : new Date().toISOString();
+  const log = { id: uid(), actionId: a.id, name: a.name, icon: a.icon, at, amount: a.price };
   state.logs.push(log);
   save(); render();
   if (navigator.vibrate) navigator.vibrate(15);
-  toast(`${a.icon} ${a.name} ${sgn(a.price)}`, "取り消す", () => { undoLog(log.id); });
+  toast(`${tag}${a.icon} ${a.name} ${sgn(a.price)}`, "取り消す", () => { undoLog(log.id); });
 }
 function undoLog(id) {
   state.logs = state.logs.filter(l => l.id !== id);
@@ -821,6 +858,11 @@ function renderSettings() {
       <button class="btn sec sm" data-edit-action="${a.id}">編集</button></div>`).join("") : `<div class="empty">行動がありません</div>`}</div>
     <button class="btn block" data-edit-action="">＋行動を追加</button>
     <button class="btn sec block" id="presets">おすすめ項目を追加（筋トレ・家事・節約・デバフなど）</button>
+    <h2>デフォルト項目</h2>
+    <div class="card"><div class="s" style="font-size:12px;color:var(--sub)">今の行動一覧（名前・単価・アイコン・習慣・表示）を保存しておき、いつでもその状態に戻せます。記録は変わりません。</div>
+      <div style="font-size:12px;margin-top:6px">保存済み: ${state.defaults ? `${state.defaults.length}項目（${dayKey(new Date(state.defaultsAt || Date.now()))}）` : "なし"}</div>
+      <button class="btn block" id="set-defaults">今の項目をデフォルトに設定</button>
+      <button class="btn sec block" id="restore-defaults">デフォルトに戻す</button></div>
     <h2>1日の目標金額</h2>
     <div class="card"><div class="s" style="font-size:12px;color:var(--sub)">ホームに進捗バー、グラフに目標線が出ます。0 で目標なし。</div>
       <div style="display:flex;gap:8px;margin-top:8px"><input type="number" id="goal-in" value="${state.goal || 0}" min="0" inputmode="numeric" style="flex:1">
@@ -977,6 +1019,8 @@ document.addEventListener("click", e => {
   if (d.tab) return go(d.tab);
   if (d.rec) return record(d.rec);
   if (d.fold) return toggleThemeOpen();
+  if (d.hday !== undefined) { homeDay = Number(d.hday); return render(); }
+  if (d.others) { othersOpen = !othersOpen; return render(); }
   if (d.imgBulk) return $("#imgs").click();
   if (d.imgPick) { imgKey = d.imgPick; return $("#img").click(); }
   if (d.imgClear) return clearThemeImg(d.imgClear);
@@ -1020,11 +1064,13 @@ document.addEventListener("click", e => {
     state.goal = v; save(); return toast(v ? `目標を ${yen(v)} にしました` : "目標を解除しました");
   }
   if (el.id === "presets") return addPresets();
+  if (el.id === "set-defaults") return setDefaults();
+  if (el.id === "restore-defaults") return restoreDefaults();
   if (el.id === "export") return exportJSON();
   if (el.id === "snaps") return snapshotsDialog();
   if (el.id === "import") return $("#file").click();
   if (el.id === "reset" && confirm("全データを削除します。よろしいですか？\n（先にJSON書き出しを推奨）") && confirm("本当に削除しますか？")) {
-    state = { actions: [], logs: [], rewards: [] }; save(); render();
+    state = { actions: [], logs: [], rewards: [], defaults: state.defaults, defaultsAt: state.defaultsAt }; save(); render(); // デフォルトは残す（「デフォルトに戻す」で再作成できる）
   }
 });
 
